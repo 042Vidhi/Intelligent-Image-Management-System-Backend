@@ -1,0 +1,28 @@
+services:
+  flaskbackend:
+    container_name: flaskbackend
+    image: flaskbackend:1.0.0
+    build:
+        context: ./backend
+        dockerfile: Dockerfile
+    ports:
+        - "5000:5000"
+    depends_on: 
+        - db
+    environment:
+        - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+
+  db:
+    container_name: db2
+    image: postgres:13.1
+    ports:
+        - "5432:5432"
+    environment:
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+        - POSTGRES_DB=postgres
+    volumes:
+        - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata: {}
