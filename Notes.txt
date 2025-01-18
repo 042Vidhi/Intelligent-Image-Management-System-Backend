@@ -1,0 +1,16 @@
+backend:
+/getImageTags - 
+
+function to generate tags and return it
+/save - post
+function to save the image on cloudinary and 
+its meta data in postgres
+/getAllImages - get
+function to get all images and send it to frontend
+/search
+function which will get query of what needs to be searched
+then find similary between tags , captions and query then 
+return list of images who matched
+
+To start run
+docker-compose up

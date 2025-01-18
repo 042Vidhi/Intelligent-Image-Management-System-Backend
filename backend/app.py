@@ -1,4 +1,5 @@
-from flask import Flask,requests, send_file, jsonify
+from flask import Flask,request, send_file, jsonify
+import requests
 from flask_cors import CORS
 from PIL import Image
 from models import db, ImageMetaData
@@ -30,10 +31,12 @@ def working():
 #api to get image tags
 @app.route('/generateTags', methods=['POST'])
 def get_tags():
-    if 'images' not in requests.files:
+    print(request.files)
+    print('Request received')
+    if 'images' not in request.files:
         return jsonify({"error": "No images found in request"}), 400
-    
-    image_files = requests.files.getlist('images')
+    print('Images found in request')
+    image_files = request.files.getlist('images')
 
     image_responses = []
 
@@ -41,6 +44,7 @@ def get_tags():
         data = image_file.read()
         gpt2_response = query_gpt2_image_captioning(data)
 
+        detr_labels = []
         try:
             detr_response = query_detr_model(data)
             detr_labels = set(obj['label'] for obj in detr_response)
@@ -72,4 +76,4 @@ def query_gpt2_image_captioning(data):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
