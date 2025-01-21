@@ -5,3 +5,4 @@ flask-cors
 pillow
 python-dotenv
 requests
+cloudinary
