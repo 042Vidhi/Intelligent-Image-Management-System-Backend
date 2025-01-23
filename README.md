@@ -45,8 +45,7 @@ Flask backend working!
 - `images`: One or multiple image files (as `multipart/form-data`).  
 
 **Screenshot**:
-![Screenshot (89)](https://github.com/user-attachments/assets/04b0099a-9a87-4a50-97d9-a9928affd15b)
-
+![generateTags](https://github.com/user-attachments/assets/57b3cb2d-b67e-4b14-a6a2-590770f8e3ff)
 
 ---
 
@@ -73,7 +72,8 @@ Flask backend working!
 
 ```
 **Screenshot**:
-![Screenshot (87)](https://github.com/user-attachments/assets/5a92c01c-f36e-410d-ba5f-f5129e2f14ca)
+![saveImage](https://github.com/user-attachments/assets/e59a6d54-5260-4de2-bdae-eab64c62fb57)
+
 
 ---
 
@@ -97,7 +97,9 @@ Flask backend working!
 }
 ```
 **Screenshot**:
-![Screenshot (88)](https://github.com/user-attachments/assets/4ad61c60-b15a-4c70-a167-1accadc744fa)
+
+![getAllImages](https://github.com/user-attachments/assets/734bfc28-054a-439e-9d71-1f4ad3372cd2)
+
 
 ---
 
@@ -124,7 +126,7 @@ Flask backend working!
 }
 ```
 **Screenshot**:
-![Screenshot (90)](https://github.com/user-attachments/assets/f6e7cf12-8307-42a5-9403-4b7c263c5d28)
+![search](https://github.com/user-attachments/assets/5152a057-535d-4134-9501-0e18232099fc)
 
 ---
 
