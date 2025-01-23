@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 load_dotenv()
 
@@ -147,6 +149,83 @@ def get_all_images():
         return jsonify({"error": False, "data": image_data}), 200
     except SQLAlchemyError as e:
         return jsonify({"error": True, "message": "Database error", "details": str(e)}), 500
+
+
+def embed_text(text):
+    response = requests.post(
+        SENTENCE_SIMILARITY,
+        headers=HEADERS,
+        json={"inputs": text}
+    )
+    response_data = response.json()
+    if isinstance(response_data, list):
+        return np.array(response_data[0])  # Return the embedding as a numpy array
+    else:
+        raise ValueError(f"Failed to embed text: {response_data}")
+
+#API to search images
+@app.route('/search', methods=['GET'])
+def search_images():
+    query = request.args.get('query')
+    if not query:
+        return jsonify({"error": True, "message": "Query parameter is required"}), 400
+
+    query = query.lower()  # Normalize query for case-insensitive matching
+
+    try:
+        images = ImageMetaData.query.all()  # Fetch all images from the database
+        matching_images = []
+        seen_ids = set()  # To track unique image IDs
+
+        for image in images:
+            for tag_or_caption in image.tags + image.captions:
+                tag_or_caption_lower = tag_or_caption.lower()
+
+                # 1. Check for manual substring match
+                if query in tag_or_caption_lower:
+                    if image.id not in seen_ids:
+                        matching_images.append({
+                            "id": image.id,
+                            "url": image.url,
+                            "filename": image.filename,
+                            "tags": image.tags,
+                            "captions": image.captions,
+                            "score": 1.0  # Maximum score for exact or substring match
+                        })
+                        seen_ids.add(image.id)  # Mark this image ID as seen
+                    continue  # Skip similarity check for this tag/caption
+
+                # 2. Use similarity search
+                payload = {"inputs": [query, tag_or_caption]}
+                response = requests.post(SENTENCE_SIMILARITY, headers=HEADERS, json=payload)
+
+                if response.status_code == 200:
+                    try:
+                        similarity_score = response.json()[0]['score']
+                        if similarity_score > 0.5:  # Adjust threshold as needed
+                            if image.id not in seen_ids:
+                                matching_images.append({
+                                    "id": image.id,
+                                    "url": image.url,
+                                    "filename": image.filename,
+                                    "tags": image.tags,
+                                    "captions": image.captions,
+                                    "score": similarity_score
+                                })
+                                seen_ids.add(image.id)  # Mark this image ID as seen
+                    except (ValueError, KeyError) as e:
+                        print(f"Error parsing similarity API response: {e}")
+                else:
+                    print(f"Error from similarity API: {response.status_code}, {response.text}")
+
+        # Sort matching images by similarity score in descending order
+        matching_images = sorted(matching_images, key=lambda x: x['score'], reverse=True)
+
+        return jsonify({"error": False, "data": matching_images}), 200
+
+    except SQLAlchemyError as e:
+        return jsonify({"error": True, "message": "Database error", "details": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

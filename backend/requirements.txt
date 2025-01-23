@@ -6,3 +6,4 @@ pillow
 python-dotenv
 requests
 cloudinary
+scikit-learn
