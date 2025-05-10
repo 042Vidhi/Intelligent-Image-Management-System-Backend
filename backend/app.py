@@ -1,3 +1,4 @@
+import io
 from flask import Flask,request, send_file, jsonify
 import requests
 from flask_cors import CORS
@@ -11,15 +12,34 @@ import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import logging
+import base64
+# from huggingface_hub import InferenceClient
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# hf_client = InferenceClient(
+#     provider="hf-inference",
+#     api_key=os.getenv("HUGGINGFACE_API_KEY")
+# )
+
+# nebius_client = InferenceClient(
+#     provider="nebius",
+#     api_key=os.getenv("HUGGINGFACE_API_KEY")
+# )
+
+# GPT2_IMAGE_CAPTIONING_MODEL = "nlpconnect/vit-gpt2-image-captioning"
+# DETR_MODEL="facebook/detr-resnet-101"
+# LLAVA_MODEL = "llava-hf/llava-1.5-7b-hf"
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@db:5432/postgres'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-DETR_API_URL = "https://api-inference.huggingface.co/models/facebook/detr-resnet-101"
-GPT2_IMAGE_CAPTIONING_API_URL = "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning"
+DETR_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/detr-resnet-101"
+LLAVA_API_URL = "https://router.huggingface.co/nebius/v1/chat/completions"
+# GPT2_IMAGE_CAPTIONING_API_URL = "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning"
 SENTENCE_SIMILARITY = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
 HEADERS = {"Authorization": "Bearer " + os.getenv("HUGGINGFACE_API_KEY")}
 
@@ -49,23 +69,30 @@ def get_tags():
     print('Request received')
     if 'images' not in request.files:
         return jsonify({"error": "No images found in request"}), 400
-    print('Images found in request')
+    logging.warning('Images found in request')
     image_files = request.files.getlist('images')
 
     image_responses = []
 
     for image_file in image_files:
         data = image_file.read()
-        gpt2_response = query_gpt2_image_captioning(data)
-
-        detr_labels = []
         try:
-            detr_response = query_detr_model(data)
-            detr_labels = set(obj['label'] for obj in detr_response)
+            gpt2_response = query_llava_model_image_captioning_api(data)
         except TypeError as e:
             # Handle the TypeError here, you can log it or return an error response
             error_message = f"Error processing image {image_file.filename}: {str(e)}"
-            print(error_message)
+            logging.warning(error_message)
+            gpt2_response = ""
+
+        detr_labels = []
+        try:
+            detr_response = query_detr_model_api(data)
+            logging.warning(f"Result from DETR model: {detr_response}")
+            detr_labels = set(detr_response)
+        except TypeError as e:
+            # Handle the TypeError here, you can log it or return an error response
+            error_message = f"Error processing image {image_file.filename}: {str(e)}"
+            logging.warning(error_message)
         
         image_responses.append({
             "filename": image_file.filename,
@@ -78,14 +105,67 @@ def get_tags():
     return {"error": False, "data": image_responses}, 200
 
 
+#using lalava model with api
+def query_llava_model_image_captioning_api(data):
 
-def query_detr_model(data):
-    response = requests.post(DETR_API_URL, headers=HEADERS, data=data, json={"parameters": {"wait_for_model": True}})
-    return response.json()
+    try:
+        encoded_data = base64.b64encode(data).decode("utf-8")
+        payload = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Describe this image in one sentence."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_data}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "model": "llava-hf/llava-1.5-7b-hf"
+        }
+        response = requests.post(LLAVA_API_URL, headers=HEADERS, json=payload)
+        message = ""
+        logging.warning(f"Response from LLAVA model API: {response}")
+        if response.status_code == 200:
+            result = response.json()
+            message = result['choices'][0]['message']['content']
+        else:
+            logging.warning(f"LLAVA model API error: {response.status_code}")
+    except Exception as e:
+        logging.warning(f"Error querying LLAVA model API: {str(e)}")
+        message = ""
 
-def query_gpt2_image_captioning(data):
-    response = requests.post(GPT2_IMAGE_CAPTIONING_API_URL, headers=HEADERS, data=data, json={"parameters": {"wait_for_model": True}})
-    return response.json()[0]['generated_text']
+    logging.warning(f"Response from LLAVA model API: {message}")
+    return message
+
+
+
+# detr model with api
+def query_detr_model_api(data):
+    try:
+        response = requests.post(DETR_API_URL, headers={"Content-Type": "image/jpeg",**HEADERS}, data=data)
+        logging.warning(f"Response from DETR model aPI: {response}")
+        if response.status_code == 200:
+            result = response.json()
+            logging.warning(f"Result from DETR model: {result}")
+            labels = [obj['label'] for obj in result]
+        else:
+            logging.warning(f"DETR model API error: {response.status_code}, {response.text}")
+            labels = []
+    except Exception as e:
+        logging.warning(f"Error querying DETR model API: {str(e)}")
+        labels = []
+
+    logging.warning(f"Response from DETR model API: {labels}")
+    return labels
+
 
 # API to upload images and metadata
 @app.route('/saveImage', methods=['POST'])
